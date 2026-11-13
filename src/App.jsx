@@ -144,8 +144,11 @@ function App() {
     doc.text(`Categoría: ${current.categoria || ''}`, 14, 65);
     doc.text(`Estado: ${current.estado || ''}`, 14, 75);
 
-    doc.text(`Descripción: ${current.descripcion || ''}`, 14, 90, { maxWidth: 180 });
-    doc.text(`Observaciones: ${current.observaciones || ''}`, 14, 140, { maxWidth: 180 });
+    const lines = doc.splitTextToSize(`Descripción: ${current.descripcion || ''}`, 180);
+    doc.text(lines, 14, 90);
+
+    const obsLines = doc.splitTextToSize(`Observaciones: ${current.observaciones || ''}`, 180);
+    doc.text(obsLines, 14, 140);
 
     doc.save(`ficha_${current.id || 'situacion'}.pdf`);
   };
@@ -155,13 +158,20 @@ function App() {
   const currentTasks = selected?.tareas || form.tareas || [];
 
   const addDocumentInsight = (insight) => {
-    setDocumentInsights(prev => [insight, ...prev].slice(0, 5));
+    setDocumentInsights(prev => {
+      const next = [insight, ...prev.filter(item => item.medida !== insight.medida)].slice(0, 5);
+      return next;
+    });
+
     if (insight.medida) {
-      handleChange('medidas', [...new Set([...(form.medidas || []), insight.medida])]);
+      const nextMeasures = [...new Set([...(form.medidas || []), insight.medida])];
+      handleChange('medidas', nextMeasures);
     }
+
     if (insight.fechaVencimiento) {
-      const msg = `Vencimiento estimado: ${insight.fechaVencimiento}`;
-      handleChange('alertas', [...new Set([...(form.alertas || []), msg])]);
+      const message = `Vencimiento estimado: ${insight.fechaVencimiento}`;
+      const nextAlerts = [...new Set([...(form.alertas || []), message])];
+      handleChange('alertas', nextAlerts);
     }
   };
 
