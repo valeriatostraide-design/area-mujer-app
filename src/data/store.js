@@ -102,7 +102,7 @@ export const saveDocumentReview = async (situacionId, review) => {
     .map(p => ({
       id: crypto.randomUUID(), situacionId, nombreCompleto: p.nombreCompleto || '', dni: p.dni || '',
       rol: p.rolPersona, origen: 'OCR revisado; identidad pendiente de validación',
-      documentoNombre: p.fileName, creadoEn: new Date().toISOString()
+      documentoNombre: p.fileName, juzgado: p.juzgado || '', expediente: p.expediente || '', tipoViolencia: p.tipoViolencia || '', creadoEn: new Date().toISOString()
     }));
   const measureCandidates = (review.pages || []).flatMap(page => (page.measures || []).map(m => ({
     id: crypto.randomUUID(), situacionId, tipo: m.medida, fechaInicio: null, fechaVencimiento: null,
