@@ -115,7 +115,7 @@ export const addTask = async (situacionId, texto) => {
   return item;
 };
 
-export const exportJSON = async () => {
+export const saveDocumentReview = async (situacionId, review) => {\n  const records = (review.pages || []).map(page => ({\n    id: crypto.randomUUID(), situacionId, fileName: page.fileName, pageNumber: page.pageNumber,\n    tipo: page.kind, textoReconocido: page.text, dniDetectado: page.dni, fechasDetectadas: page.dates,\n    nombresCandidatos: page.names, medidasCandidatas: page.measures, estadoRevision: page.status,\n    original: page.originalFile ? { name: page.originalFile.name, type: page.originalFile.type, size: page.originalFile.size, blob: page.originalFile } : null,\n    revisadoPor: review.reviewedBy, revisadoEn: review.reviewedAt, fechaCarga: new Date().toISOString()\n  }));\n  await db.transaction('rw', db.documentos, async () => { await db.documentos.bulkAdd(records); });\n  return records;\n};\n\nexport const exportJSON = async () => {
   const situaciones = await db.situaciones.toArray();
   const payload = {
     exportado: new Date().toISOString(),
