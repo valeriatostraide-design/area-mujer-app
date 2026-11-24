@@ -8,15 +8,15 @@ const classify = t => { const s=t.toLowerCase(); if(/oficio|juzgado|tribunal|res
 const fields = t => {
   const line = pattern => t.match(pattern)?.[1]?.trim() || '';
   return {
-    dni: line(/\\b(?:DNI|D\\.N\\.I\\.?|Documento(?: Nacional)? de Identidad)\\s*(?:N[°º.]*)?\\s*([0-9.]{7,12})/i),
-    dates: [...t.matchAll(/\\b(\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4})\\b/g)].map(x => x[1]),
-    names: [...new Set([...t.matchAll(/(?:Sra?\\.?|Sr\\.?|Dra?\\.?|D\\.?)(?:\\s+)([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+(?:\\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+){1,3})/g)].map(x => x[1]))],
+    dni: line(/\b(?:DNI|D\.N\.I\.?|Documento(?: Nacional)? de Identidad)\s*(?:N[°º.]*)?\s*([0-9.]{7,12})/i),
+    dates: [...t.matchAll(/\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/g)].map(x => x[1]),
+    names: [...new Set([...t.matchAll(/(?:Sra?\.?|Sr\.?|Dra?\.?|D\.?)(?:\s+)([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+){1,3})/g)].map(x => x[1]))],
     measures: extractMeasuresAndDates(t).filter(x => x.medida !== 'Sin coincidencias claras'),
-    juzgado: line(/((?:Juzgado|Tribunal)[^\\n]{0,100})/i),
-    expediente: line(/(?:Expte?\\.?|Expediente(?: N[°º.]*)?)\\s*[:#-]?\\s*([A-Z0-9./-]{3,30})/i),
-    fechaNacimiento: line(/(?:fecha de nacimiento|nacido\\/a el)\\s*[: ]*([0-3]?\\d[/-][01]?\\d[/-]\\d{2,4})/i),
-    domicilio: line(/(?:domicilio|residencia)\\s*[: ]*([^\\n]{4,100})/i),
-    telefono: line(/(?:tel[eé]fono|celular|contacto)\\s*[: ]*([+0-9()\\s.-]{6,25})/i),
+    juzgado: line(/((?:Juzgado|Tribunal)[^\n]{0,100})/i),
+    expediente: line(/(?:Expte?\.?|Expediente(?: N[°º.]*)?)\s*[:#-]?\s*([A-Z0-9./-]{3,30})/i),
+    fechaNacimiento: line(/(?:fecha de nacimiento|nacido\/a el)\s*[: ]*([0-3]?\d[/-][01]?\d[/-]\d{2,4})/i),
+    domicilio: line(/(?:domicilio|residencia)\s*[: ]*([^\n]{4,100})/i),
+    telefono: line(/(?:tel[eé]fono|celular|contacto)\s*[: ]*([+0-9()\s.-]{6,25})/i),
     tipoViolencia: ['física','psicológica','sexual','económica y patrimonial','simbólica','digital'].filter(v => t.toLowerCase().includes(v)).join(', ')
   };
 };
