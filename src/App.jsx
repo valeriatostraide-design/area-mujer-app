@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
-import { db, seedData, exportJSON, addSituation, updateSituation, deleteSituation, addIntervention, addAlert, addTask, saveDocumentReview } from './data/store';
+import { db, seedData, exportJSON, addSituation, updateSituation, deleteSituation, addIntervention, addAlert, addTask, saveDocumentReview, exportFullBackup } from './data/store';
 import { DocumentReader } from './features/documents/DocumentReader';
 
 const tiposMedida = [
@@ -199,7 +199,7 @@ function App() {
         </div>
 
         <div className="panel-actions">
-          <button onClick={handleExportJSON}>Exportar JSON</button>
+          <button onClick={handleExportJSON}>Respaldo completo</button>
         </div>
       </aside>
 
