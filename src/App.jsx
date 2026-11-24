@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
-import { db, seedData, exportJSON, addSituation, updateSituation, deleteSituation, addIntervention, addAlert, addTask, saveDocumentReview, exportFullBackup } from './data/store';
+import { db, seedData, exportJSON, addSituation, updateSituation, deleteSituation, addIntervention, addAlert, addTask, saveDocumentReview, exportFullBackup, updateMeasureDetail } from './data/store';
 import { DocumentReader } from './features/documents/DocumentReader';
 
 const tiposMedida = [
@@ -31,6 +31,9 @@ function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [form, setForm] = useState(emptySituation);
   const [documentInsights, setDocumentInsights] = useState([]);
+  const [linkedDocuments, setLinkedDocuments] = useState([]);
+  const [linkedPeople, setLinkedPeople] = useState([]);
+  const [linkedMeasures, setLinkedMeasures] = useState([]);
 
   useEffect(() => {
     seedData();
@@ -53,6 +56,15 @@ function App() {
   useEffect(() => {
     if (selected) {
       setForm(selected);
+      Promise.all([
+        db.documentos.where('situacionId').equals(selected.id).toArray(),
+        db.personas.where('situacionId').equals(selected.id).toArray(),
+        db.medidasDetalle.where('situacionId').equals(selected.id).toArray()
+      ]).then(([docs, people, measures]) => {
+        setLinkedDocuments(docs); setLinkedPeople(people); setLinkedMeasures(measures);
+      });
+    } else {
+      setLinkedDocuments([]); setLinkedPeople([]); setLinkedMeasures([]);
     }
   }, [selected]);
 
@@ -319,6 +331,34 @@ function App() {
             </section>
 
             <DocumentReader onConfirm={addDocumentReview} />
+
+            {(linkedDocuments.length > 0 || linkedPeople.length > 0 || linkedMeasures.length > 0) && (
+              <section className="subsections document-records">
+                <div className="card">
+                  <h3>Documentos archivados</h3>
+                  {linkedDocuments.map(doc => <div className="record-row" key={doc.id}>
+                    <span>{doc.fileName} · {doc.tipo} · hoja {doc.pageNumber}</span>
+                    {doc.original?.blob && <button onClick={() => saveAs(doc.original.blob, doc.original.name)}>Descargar original</button>}
+                    <small>Revisó: {doc.revisadoPor} · {new Date(doc.revisadoEn).toLocaleString('es-AR')}</small>
+                  </div>)}
+                </div>
+                <div className="card">
+                  <h3>Personas identificadas para validar</h3>
+                  {linkedPeople.length ? linkedPeople.map(person => <div className="record-row" key={person.id}>
+                    <strong>{person.nombreCompleto || 'Nombre pendiente'}</strong><span>{person.rol} · DNI {person.dni || 'pendiente'}</span><small>{person.origen}</small>
+                  </div>) : <p>No hay personas atribuidas manualmente.</p>}
+                </div>
+                <div className="card">
+                  <h3>Medidas detectadas · pendientes de verificación</h3>
+                  {linkedMeasures.length ? linkedMeasures.map(measure => <div className="record-row" key={measure.id}>
+                    <strong>{measure.tipo}</strong><span>{measure.estado} · Fuente: {measure.fuente}</span>
+                    <label>Fecha de inicio verificada<input type="date" defaultValue={measure.fechaInicio || ''} onBlur={async e => { await updateMeasureDetail(measure.id, { fechaInicio: e.target.value || null }); setLinkedMeasures(await db.medidasDetalle.where('situacionId').equals(selected.id).toArray()); }} /></label>
+                    <label>Vencimiento verificado<input type="date" defaultValue={measure.fechaVencimiento || ''} onBlur={async e => { await updateMeasureDetail(measure.id, { fechaVencimiento: e.target.value || null, estado: 'Fecha cargada manualmente; verificar resolución y notificación' }); setLinkedMeasures(await db.medidasDetalle.where('situacionId').equals(selected.id).toArray()); }} /></label>
+                  </div>) : <p>No se detectaron menciones de medidas.</p>}
+                </div>
+              </section>
+            )}
+
 
             {documentInsights.length > 0 && (
               <section className="document-insights">
