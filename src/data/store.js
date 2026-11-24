@@ -129,7 +129,7 @@ export const exportFullBackup = async () => {
   ]);
   const metadata = {
     exportado: new Date().toISOString(), tipo: 'AreaMujerBackup', version: '0.2.1',
-    situaciones, documentos: documentos.map(({ original, ...doc }) => doc),
+    situaciones, documentos: documentos.map(({ original, ...doc }) => ({ ...doc, original: original ? { name: original.name, type: original.type, size: original.size } : null })),
     personas, medidasDetalle, intervenciones, alertas, tareas
   };
   zip.file('datos.json', JSON.stringify(metadata, null, 2));
@@ -140,6 +140,34 @@ export const exportFullBackup = async () => {
     }
   }
   return zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+};
+
+
+export const importFullBackup = async (file) => {
+  const zip = await JSZip.loadAsync(file);
+  const dataFile = zip.file('datos.json');
+  if (!dataFile) throw new Error('El respaldo no contiene datos.json.');
+  const payload = JSON.parse(await dataFile.async('text'));
+  if (payload.tipo !== 'AreaMujerBackup') throw new Error('El archivo no es un respaldo válido de Área Mujer.');
+  const docs = await Promise.all((payload.documentos || []).map(async doc => {
+    if (!doc.original) return doc;
+    const safeName = doc.original.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const entry = zip.file('documentos/' + doc.id + '_' + safeName);
+    if (!entry) throw new Error('Falta un documento original en el respaldo: ' + doc.original.name);
+    const blob = await entry.async('blob');
+    return { ...doc, original: { ...doc.original, blob } };
+  }));
+  await db.transaction('rw', db.situaciones, db.documentos, db.personas, db.medidasDetalle, db.intervenciones, db.alertas, db.tareas, async () => {
+    await Promise.all([db.situaciones.clear(), db.documentos.clear(), db.personas.clear(), db.medidasDetalle.clear(), db.intervenciones.clear(), db.alertas.clear(), db.tareas.clear()]);
+    if (payload.situaciones?.length) await db.situaciones.bulkAdd(payload.situaciones);
+    if (docs.length) await db.documentos.bulkAdd(docs);
+    if (payload.personas?.length) await db.personas.bulkAdd(payload.personas);
+    if (payload.medidasDetalle?.length) await db.medidasDetalle.bulkAdd(payload.medidasDetalle);
+    if (payload.intervenciones?.length) await db.intervenciones.bulkAdd(payload.intervenciones);
+    if (payload.alertas?.length) await db.alertas.bulkAdd(payload.alertas);
+    if (payload.tareas?.length) await db.tareas.bulkAdd(payload.tareas);
+  });
+  return payload.situaciones?.length || 0;
 };
 
 export const exportJSON = async () => {
