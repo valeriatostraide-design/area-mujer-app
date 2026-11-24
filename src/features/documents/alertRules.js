@@ -43,11 +43,9 @@ export function extractMeasuresAndDates(text = '') {
     });
   }
 
-  if (dateMatches.length && results.length) {
-    const firstDate = dateMatches[0];
-    const normalized = firstDate.includes('/') ? firstDate : firstDate;
-    results[0].fechaVencimiento = normalized;
-  }
+  // No asociar fechas automáticamente a vencimientos: una fecha del oficio
+  // puede ser la de emisión, audiencia, notificación o inicio de la medida.
+  // La fecha de vencimiento requiere verificación humana y contexto jurídico.
 
   if (results.length === 0) {
     results.push({

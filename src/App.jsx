@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
-import { db, seedData, exportJSON, addSituation, updateSituation, deleteSituation, addIntervention, addAlert, addTask } from './data/store';
+import { db, seedData, exportJSON, addSituation, updateSituation, deleteSituation, addIntervention, addAlert, addTask, saveDocumentReview, exportFullBackup, importFullBackup, updateMeasureDetail } from './data/store';
 import { DocumentReader } from './features/documents/DocumentReader';
 
 const tiposMedida = [
@@ -31,6 +31,10 @@ function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [form, setForm] = useState(emptySituation);
   const [documentInsights, setDocumentInsights] = useState([]);
+  const [linkedDocuments, setLinkedDocuments] = useState([]);
+  const [linkedPeople, setLinkedPeople] = useState([]);
+  const [linkedMeasures, setLinkedMeasures] = useState([]);
+  const backupInputRef = useRef(null);
 
   useEffect(() => {
     seedData();
@@ -53,6 +57,15 @@ function App() {
   useEffect(() => {
     if (selected) {
       setForm(selected);
+      Promise.all([
+        db.documentos.where('situacionId').equals(selected.id).toArray(),
+        db.personas.where('situacionId').equals(selected.id).toArray(),
+        db.medidasDetalle.where('situacionId').equals(selected.id).toArray()
+      ]).then(([docs, people, measures]) => {
+        setLinkedDocuments(docs); setLinkedPeople(people); setLinkedMeasures(measures);
+      });
+    } else {
+      setLinkedDocuments([]); setLinkedPeople([]); setLinkedMeasures([]);
     }
   }, [selected]);
 
@@ -126,9 +139,20 @@ function App() {
     setSituaciones(items);
   };
 
+  const handleRestoreBackup = async (file) => {
+    if (!file || !window.confirm('La restauración reemplazará los datos actuales de esta computadora. ¿Ya hiciste un respaldo de lo que hay ahora y querés continuar?')) return;
+    try {
+      await importFullBackup(file);
+      const items = await db.situaciones.toArray();
+      setSituaciones(items); setSelectedId(items[0]?.id || null);
+      if (items[0]) setForm(items[0]);
+      alert('Respaldo restaurado. Verificá los expedientes y los documentos archivados.');
+    } catch (error) { alert('No se pudo restaurar el respaldo: ' + (error.message || error)); }
+  };
+
   const handleExportJSON = async () => {
-    const blob = await exportJSON();
-    saveAs(blob, 'area_mujer_export.json');
+    const blob = await exportFullBackup();
+    saveAs(blob, 'respaldo_area_mujer.zip');
   };
 
   const handlePrintPDF = () => {
@@ -156,6 +180,26 @@ function App() {
   const currentMeasures = selected?.medidas || form.medidas || [];
   const currentAlerts = selected?.alertas || form.alertas || [];
   const currentTasks = selected?.tareas || form.tareas || [];
+
+  const addDocumentReview = async (review) => {
+    if (!form.titular?.trim()) { alert('Antes de adjuntar documentación, completá al menos el nombre de la persona protegida o titular de la situación.'); return; }
+    let situationId = form.id;
+    if (!situationId) {
+      const created = await addSituation(form);
+      situationId = created.id;
+      setForm(created);
+      setSelectedId(created.id);
+      setSituaciones(await db.situaciones.toArray());
+    }
+    await saveDocumentReview(situationId, review);
+    const [docs, people, measures] = await Promise.all([
+      db.documentos.where('situacionId').equals(situationId).toArray(),
+      db.personas.where('situacionId').equals(situationId).toArray(),
+      db.medidasDetalle.where('situacionId').equals(situationId).toArray()
+    ]);
+    setLinkedDocuments(docs); setLinkedPeople(people); setLinkedMeasures(measures);
+    alert('Documentación original y revisión guardadas en esta situación.');
+  };
 
   const addDocumentInsight = (insight) => {
     setDocumentInsights(prev => {
@@ -199,12 +243,14 @@ function App() {
         </div>
 
         <div className="panel-actions">
-          <button onClick={handleExportJSON}>Exportar JSON</button>
+          <button onClick={handleExportJSON}>Respaldo completo</button>
+          <input ref={backupInputRef} type="file" accept=".zip,application/zip" style={{ display: 'none' }} onChange={e => handleRestoreBackup(e.target.files?.[0])} />
+          <button onClick={() => backupInputRef.current?.click()}>Restaurar respaldo ZIP</button>
         </div>
       </aside>
 
       <main className="content">
-        {selected || form?.titular || form?.denunciado ? (
+        {selected || form ? (
           <>
             <header className="topbar">
               <h2>Ficha de situación</h2>
@@ -305,7 +351,35 @@ function App() {
               </div>
             </section>
 
-            <DocumentReader onInsight={addDocumentInsight} />
+            <DocumentReader onConfirm={addDocumentReview} />
+
+            {(linkedDocuments.length > 0 || linkedPeople.length > 0 || linkedMeasures.length > 0) && (
+              <section className="subsections document-records">
+                <div className="card">
+                  <h3>Documentos archivados</h3>
+                  {linkedDocuments.map(doc => <div className="record-row" key={doc.id}>
+                    <span>{doc.fileName} · {doc.tipo} · hoja {doc.pageNumber}</span>
+                    {doc.original?.blob && <button onClick={() => saveAs(doc.original.blob, doc.original.name)}>Descargar original</button>}
+                    <small>Revisó: {doc.revisadoPor} · {new Date(doc.revisadoEn).toLocaleString('es-AR')}</small>
+                  </div>)}
+                </div>
+                <div className="card">
+                  <h3>Personas identificadas para validar</h3>
+                  {linkedPeople.length ? linkedPeople.map(person => <div className="record-row" key={person.id}>
+                    <strong>{person.nombreCompleto || 'Nombre pendiente'}</strong><span>{person.rol} · DNI {person.dni || 'pendiente'}</span><span>{person.fechaNacimiento || 'Fecha de nacimiento pendiente'} · {person.domicilio || 'Domicilio pendiente'} · {person.telefono || 'Teléfono pendiente'}</span><small>{person.origen}</small>
+                  </div>) : <p>No hay personas atribuidas manualmente.</p>}
+                </div>
+                <div className="card">
+                  <h3>Medidas detectadas · pendientes de verificación</h3>
+                  {linkedMeasures.length ? linkedMeasures.map(measure => <div className="record-row" key={measure.id}>
+                    <strong>{measure.tipo}</strong><span>{measure.estado} · Fuente: {measure.fuente}</span>
+                    <label>Fecha de inicio verificada<input type="date" defaultValue={measure.fechaInicio || ''} onBlur={async e => { await updateMeasureDetail(measure.id, { fechaInicio: e.target.value || null }); setLinkedMeasures(await db.medidasDetalle.where('situacionId').equals(selected.id).toArray()); }} /></label>
+                    <label>Vencimiento verificado<input type="date" defaultValue={measure.fechaVencimiento || ''} onBlur={async e => { await updateMeasureDetail(measure.id, { fechaVencimiento: e.target.value || null, estado: 'Fecha cargada manualmente; verificar resolución y notificación' }); setLinkedMeasures(await db.medidasDetalle.where('situacionId').equals(selected.id).toArray()); }} /></label>
+                  </div>) : <p>No se detectaron menciones de medidas.</p>}
+                </div>
+              </section>
+            )}
+
 
             {documentInsights.length > 0 && (
               <section className="document-insights">
