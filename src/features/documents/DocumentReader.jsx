@@ -1,77 +1,22 @@
 import { useRef, useState } from 'react';
+import { createWorker } from 'tesseract.js';
+import * as pdfjsLib from 'pdfjs-dist';
 import { extractMeasuresAndDates } from './alertRules';
-
-export function DocumentReader({ onInsight }) {
-  const inputRef = useRef(null);
-  const [previewText, setPreviewText] = useState('');
-  const [fileName, setFileName] = useState('');
-
-  const handleTextFile = async (file) => {
-    const text = await file.text();
-    const cleaned = text.replace(/\s+/g, ' ').trim();
-    setPreviewText(cleaned.slice(0, 600));
-    const findings = extractMeasuresAndDates(cleaned || 'No se pudo extraer texto.');
-    findings.forEach(item => onInsight(item));
-  };
-
-  const handleFile = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setFileName(file.name);
-
-    if (file.type.startsWith('text/') || file.name.toLowerCase().endsWith('.txt') || file.name.toLowerCase().endsWith('.json')) {
-      await handleTextFile(file);
-      return;
-    }
-
-    if (file.type.startsWith('image/')) {
-      const previewUrl = URL.createObjectURL(file);
-      const preview = `Archivo de imagen cargado: ${file.name}. Se puede visualizar como soporte documental y luego validar manualmente la medida y la fecha.`;
-      setPreviewText(preview);
-      onInsight({
-        medida: 'Documento gráfico adjunto',
-        resumen: 'Se cargó un archivo de imagen para revisión manual de la resolución o medida.',
-        fechaVencimiento: null
-      });
-      return;
-    }
-
-    if (file.name.toLowerCase().endsWith('.pdf')) {
-      setPreviewText(`Archivo PDF cargado: ${file.name}. Para análisis técnico de fechas y medidas, será necesario integrar OCR/PDF parser real en una segunda etapa.`);
-      onInsight({
-        medida: 'PDF detectado',
-        resumen: 'Se cargó un PDF; la extracción automatizada de fechas requiere OCR o parser especializado.',
-        fechaVencimiento: null
-      });
-      return;
-    }
-
-    setPreviewText(`Archivo cargado: ${file.name}. El análisis de fechas y medidas queda habilitado para archivos de texto e imágenes.`);
-  };
-
-  const triggerInput = () => inputRef.current?.click();
-
-  return (
-    <section className="document-insights">
-      <h3>Analizador de documentos</h3>
-      <input
-        ref={inputRef}
-        type="file"
-        accept=".txt,.json,.pdf,image/*"
-        onChange={handleFile}
-        style={{ display: 'none' }}
-      />
-      <button onClick={triggerInput}>Leer archivo de medidas</button>
-
-      {fileName && <p className="file-name">Archivo: {fileName}</p>}
-
-      {previewText && (
-        <div className="preview-box">
-          <strong>Vista previa del contenido:</strong>
-          <p>{previewText}</p>
-        </div>
-      )}
-    </section>
-  );
+import './document-reader.css';
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
+const classify = t => { const s=t.toLowerCase(); if(/oficio|juzgado|tribunal|resuelv|medida cautelar|prohibici[oó]n de acercamiento/.test(s))return 'Oficio judicial'; if(/dni|documento nacional|fecha de nacimiento|domicilio|estado civil/.test(s))return 'Datos personales'; if(/denuncia|relato|denunció|manifiesta|exposición/.test(s))return 'Denuncia'; return 'Otro / revisar'; };
+const fields = t => ({dni:t.match(/\b(?:DNI|D\.N\.I\.?|Documento(?: Nacional)? de Identidad)\s*(?:N[°º.]*)?\s*([0-9.]{7,12})/i)?.[1]||'',dates:[...t.matchAll(/\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/g)].map(x=>x[1]),names:[...new Set([...t.matchAll(/(?:Sra?\.?|Sr\.?|Dra?\.?|D\.?)(?:\s+)([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+){1,3})/g)].map(x=>x[1]))],measures:extractMeasuresAndDates(t).filter(x=>x.medida!=='Sin coincidencias claras')});
+export function DocumentReader({onConfirm}) {
+ const ref=useRef(null); const [pages,setPages]=useState([]); const [busy,setBusy]=useState(false); const [progress,setProgress]=useState(''); const [error,setError]=useState(''); const [reviewer,setReviewer]=useState('');
+ const edit=(id,k,v)=>setPages(old=>old.map(p=>p.id===id?{...p,[k]:v}:p));
+ const process=async files=>{setBusy(true);setError('');setPages([]);let worker;const out=[];
+ try{worker=await createWorker('spa',1,{logger:m=>setProgress(m.status==='recognizing text'?'Reconociendo texto: '+Math.round((m.progress||0)*100)+'%':m.status||'Preparando OCR…')});
+ for(const file of files){if(file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf')){const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;for(let n=1;n<=pdf.numPages;n++){setProgress('Procesando '+file.name+', página '+n+' de '+pdf.numPages);const page=await pdf.getPage(n);const vp=page.getViewport({scale:1.8});const canvas=document.createElement('canvas');canvas.width=vp.width;canvas.height=vp.height;await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;const text=(await worker.recognize(canvas)).data.text||'';out.push({id:crypto.randomUUID(),fileName:file.name,pageNumber:n,kind:classify(text),text,...fields(text),status:text.trim()?'Revisar':'OCR sin texto: revisar imagen'});canvas.width=0;canvas.height=0;}}
+ else if(file.type.startsWith('image/')){setProgress('Procesando imagen '+file.name);const text=(await worker.recognize(file)).data.text||'';out.push({id:crypto.randomUUID(),fileName:file.name,pageNumber:1,kind:classify(text),text,...fields(text),status:text.trim()?'Revisar':'OCR sin texto: revisar imagen'});}
+ else if(file.type.startsWith('text/')||/\.(txt|md)$/i.test(file.name)){const text=await file.text();out.push({id:crypto.randomUUID(),fileName:file.name,pageNumber:1,kind:classify(text),text,...fields(text),status:'Texto extraído: revisar'});}
+ else out.push({id:crypto.randomUUID(),fileName:file.name,pageNumber:1,kind:'Otro / revisar',text:'Formato no compatible para lectura automática. Revisar original.',...fields(''),status:'No procesado'});}
+ setPages(out);setProgress('Lectura finalizada. Revisá y corregí cada hoja antes de confirmar.');
+ }catch(e){setError('No se pudo completar la lectura: '+(e.message||e));}finally{if(worker)await worker.terminate();setBusy(false);}};
+ const confirm=()=>{if(!reviewer.trim()){setError('Indicá quién verificó la documentación.');return;}onConfirm?.({reviewedBy:reviewer.trim(),reviewedAt:new Date().toISOString(),pages:pages.map(({id,fileName,pageNumber,kind,text,dni,dates,names,measures,status})=>({id,fileName,pageNumber,kind,text,dni,dates,names,measures,status}))});setProgress('Revisión confirmada. Guardá la situación para conservar el registro.');};
+ return <section className="document-reader"><h3>Digitalización y revisión de expediente</h3><p>OCR local en español: los archivos se procesan en este equipo y no se envían a un servicio externo.</p><input ref={ref} type="file" multiple accept="image/*,.pdf,.txt,.md" onChange={e=>e.target.files?.length&&process([...e.target.files])}/><button disabled={busy} onClick={()=>ref.current?.click()}>{busy?'Procesando…':'Seleccionar varias fotos o PDF'}</button>{progress&&<p>{progress}</p>}{error&&<p className="reader-error">{error}</p>}{pages.length>0&&<><p><b>{pages.length} hoja(s) procesada(s).</b> El OCR puede equivocarse, sobre todo con manuscritos o fotos borrosas.</p>{pages.map((p,i)=><article className="reader-page" key={p.id}><b>Hoja {i+1} · {p.fileName}{p.pageNumber>1?' · página '+p.pageNumber:''}</b><label>Tipo de hoja<select value={p.kind} onChange={e=>edit(p.id,'kind',e.target.value)}>{['Oficio judicial','Datos personales','Denuncia','Otro / revisar'].map(x=><option key={x}>{x}</option>)}</select></label><label>Texto reconocido (corregible)<textarea rows={7} value={p.text} onChange={e=>edit(p.id,'text',e.target.value)}/></label><div className="reader-extracted"><p><b>DNI detectado:</b> {p.dni||'No detectado'}</p><p><b>Fechas:</b> {p.dates.join(', ')||'Ninguna'}</p><p><b>Nombres candidatos:</b> {p.names.join(' · ')||'No detectados'}</p><p><b>Medidas candidatas:</b> {p.measures.map(m=>m.medida).join(', ')||'No detectadas'}</p><small>Son indicios para revisión, no datos jurídicamente validados.</small></div></article>)}<label>Responsable de revisión<input value={reviewer} onChange={e=>setReviewer(e.target.value)} placeholder="Nombre o identificación"/></label><button onClick={confirm}>Confirmar revisión documental</button></>}</section>;
 }
