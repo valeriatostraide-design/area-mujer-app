@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
-import { db, seedData, exportJSON, addSituation, updateSituation, deleteSituation, addIntervention, addAlert, addTask } from './data/store';
+import { db, seedData, exportJSON, addSituation, updateSituation, deleteSituation, addIntervention, addAlert, addTask, saveDocumentReview } from './data/store';
 import { DocumentReader } from './features/documents/DocumentReader';
 
 const tiposMedida = [
@@ -157,7 +157,7 @@ function App() {
   const currentAlerts = selected?.alertas || form.alertas || [];
   const currentTasks = selected?.tareas || form.tareas || [];
 
-  const addDocumentReview = (review) => {\n    handleChange('documentos', [...(form.documentos || []), review]);\n  };\n\n  const addDocumentInsight = (insight) => {
+  const addDocumentReview = async (review) => {\n    let situationId = form.id;\n    if (!situationId) {\n      const created = await addSituation(form);\n      situationId = created.id;\n      setForm(created);\n      setSelectedId(created.id);\n      setSituaciones(await db.situaciones.toArray());\n    }\n    await saveDocumentReview(situationId, review);\n    alert('Documentación original y revisión guardadas en esta situación.');\n  };\n\n  const addDocumentInsight = (insight) => {
     setDocumentInsights(prev => {
       const next = [insight, ...prev.filter(item => item.medida !== insight.medida)].slice(0, 5);
       return next;
