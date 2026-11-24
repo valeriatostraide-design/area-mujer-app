@@ -217,7 +217,7 @@ function App() {
       </aside>
 
       <main className="content">
-        {selected || form?.titular || form?.denunciado ? (
+        {selected || form ? (
           <>
             <header className="topbar">
               <h2>Ficha de situación</h2>
