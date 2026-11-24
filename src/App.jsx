@@ -182,6 +182,7 @@ function App() {
   const currentTasks = selected?.tareas || form.tareas || [];
 
   const addDocumentReview = async (review) => {
+    if (!form.titular?.trim()) { alert('Antes de adjuntar documentación, completá al menos el nombre de la persona protegida o titular de la situación.'); return; }
     let situationId = form.id;
     if (!situationId) {
       const created = await addSituation(form);
@@ -191,6 +192,12 @@ function App() {
       setSituaciones(await db.situaciones.toArray());
     }
     await saveDocumentReview(situationId, review);
+    const [docs, people, measures] = await Promise.all([
+      db.documentos.where('situacionId').equals(situationId).toArray(),
+      db.personas.where('situacionId').equals(situationId).toArray(),
+      db.medidasDetalle.where('situacionId').equals(situationId).toArray()
+    ]);
+    setLinkedDocuments(docs); setLinkedPeople(people); setLinkedMeasures(measures);
     alert('Documentación original y revisión guardadas en esta situación.');
   };
 
