@@ -157,7 +157,20 @@ function App() {
   const currentAlerts = selected?.alertas || form.alertas || [];
   const currentTasks = selected?.tareas || form.tareas || [];
 
-  const addDocumentReview = async (review) => {\n    let situationId = form.id;\n    if (!situationId) {\n      const created = await addSituation(form);\n      situationId = created.id;\n      setForm(created);\n      setSelectedId(created.id);\n      setSituaciones(await db.situaciones.toArray());\n    }\n    await saveDocumentReview(situationId, review);\n    alert('Documentación original y revisión guardadas en esta situación.');\n  };\n\n  const addDocumentInsight = (insight) => {
+  const addDocumentReview = async (review) => {
+    let situationId = form.id;
+    if (!situationId) {
+      const created = await addSituation(form);
+      situationId = created.id;
+      setForm(created);
+      setSelectedId(created.id);
+      setSituaciones(await db.situaciones.toArray());
+    }
+    await saveDocumentReview(situationId, review);
+    alert('Documentación original y revisión guardadas en esta situación.');
+  };
+
+  const addDocumentInsight = (insight) => {
     setDocumentInsights(prev => {
       const next = [insight, ...prev.filter(item => item.medida !== insight.medida)].slice(0, 5);
       return next;
