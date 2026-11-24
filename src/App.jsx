@@ -151,8 +151,8 @@ function App() {
   };
 
   const handleExportJSON = async () => {
-    const blob = await exportJSON();
-    saveAs(blob, 'area_mujer_export.json');
+    const blob = await exportFullBackup();
+    saveAs(blob, 'respaldo_area_mujer.zip');
   };
 
   const handlePrintPDF = () => {
