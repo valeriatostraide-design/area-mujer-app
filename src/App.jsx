@@ -366,7 +366,7 @@ function App() {
                 <div className="card">
                   <h3>Personas identificadas para validar</h3>
                   {linkedPeople.length ? linkedPeople.map(person => <div className="record-row" key={person.id}>
-                    <strong>{person.nombreCompleto || 'Nombre pendiente'}</strong><span>{person.rol} · DNI {person.dni || 'pendiente'}</span><small>{person.origen}</small>
+                    <strong>{person.nombreCompleto || 'Nombre pendiente'}</strong><span>{person.rol} · DNI {person.dni || 'pendiente'}</span><span>{person.fechaNacimiento || 'Fecha de nacimiento pendiente'} · {person.domicilio || 'Domicilio pendiente'} · {person.telefono || 'Teléfono pendiente'}</span><small>{person.origen}</small>
                   </div>) : <p>No hay personas atribuidas manualmente.</p>}
                 </div>
                 <div className="card">
