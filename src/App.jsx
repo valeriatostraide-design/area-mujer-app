@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
-import { db, seedData, exportJSON, addSituation, updateSituation, deleteSituation, addIntervention, addAlert, addTask, saveDocumentReview, exportFullBackup, updateMeasureDetail } from './data/store';
+import { db, seedData, exportJSON, addSituation, updateSituation, deleteSituation, addIntervention, addAlert, addTask, saveDocumentReview, exportFullBackup, importFullBackup, updateMeasureDetail } from './data/store';
 import { DocumentReader } from './features/documents/DocumentReader';
 
 const tiposMedida = [
@@ -34,6 +34,7 @@ function App() {
   const [linkedDocuments, setLinkedDocuments] = useState([]);
   const [linkedPeople, setLinkedPeople] = useState([]);
   const [linkedMeasures, setLinkedMeasures] = useState([]);
+  const backupInputRef = useRef(null);
 
   useEffect(() => {
     seedData();
@@ -138,6 +139,17 @@ function App() {
     setSituaciones(items);
   };
 
+  const handleRestoreBackup = async (file) => {
+    if (!file || !window.confirm('La restauración reemplazará los datos actuales de esta computadora. ¿Ya hiciste un respaldo de lo que hay ahora y querés continuar?')) return;
+    try {
+      await importFullBackup(file);
+      const items = await db.situaciones.toArray();
+      setSituaciones(items); setSelectedId(items[0]?.id || null);
+      if (items[0]) setForm(items[0]);
+      alert('Respaldo restaurado. Verificá los expedientes y los documentos archivados.');
+    } catch (error) { alert('No se pudo restaurar el respaldo: ' + (error.message || error)); }
+  };
+
   const handleExportJSON = async () => {
     const blob = await exportJSON();
     saveAs(blob, 'area_mujer_export.json');
@@ -225,6 +237,8 @@ function App() {
 
         <div className="panel-actions">
           <button onClick={handleExportJSON}>Respaldo completo</button>
+          <input ref={backupInputRef} type="file" accept=".zip,application/zip" style={{ display: 'none' }} onChange={e => handleRestoreBackup(e.target.files?.[0])} />
+          <button onClick={() => backupInputRef.current?.click()}>Restaurar respaldo ZIP</button>
         </div>
       </aside>
 
