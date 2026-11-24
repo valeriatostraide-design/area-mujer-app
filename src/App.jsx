@@ -157,7 +157,7 @@ function App() {
   const currentAlerts = selected?.alertas || form.alertas || [];
   const currentTasks = selected?.tareas || form.tareas || [];
 
-  const addDocumentInsight = (insight) => {
+  const addDocumentReview = (review) => {\n    handleChange('documentos', [...(form.documentos || []), review]);\n  };\n\n  const addDocumentInsight = (insight) => {
     setDocumentInsights(prev => {
       const next = [insight, ...prev.filter(item => item.medida !== insight.medida)].slice(0, 5);
       return next;
@@ -305,7 +305,7 @@ function App() {
               </div>
             </section>
 
-            <DocumentReader onInsight={addDocumentInsight} />
+            <DocumentReader onConfirm={addDocumentReview} />
 
             {documentInsights.length > 0 && (
               <section className="document-insights">
