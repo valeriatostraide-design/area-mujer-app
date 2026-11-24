@@ -117,7 +117,7 @@ export const saveDocumentReview = async (situacionId, review) => {
   return { documents: records, people, measureCandidates };
 };
 
-export const exportFullBackup = async () => {
+export const updateMeasureDetail = async (id, changes) => {\n  await db.medidasDetalle.update(id, changes);\n};\n\nexport const exportFullBackup = async () => {
   const zip = new JSZip();
   const [situaciones, documentos, personas, medidasDetalle, intervenciones, alertas, tareas] = await Promise.all([
     db.situaciones.toArray(), db.documentos.toArray(), db.personas.toArray(), db.medidasDetalle.toArray(),
