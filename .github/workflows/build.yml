@@ -13,4 +13,5 @@ jobs:
         with:
           node-version: 20
       - run: npm install
-      - run: npm run build\n      - run: npm run electron:build
+      - run: npm run build
+      - run: npm run electron:build
